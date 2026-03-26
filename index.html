@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Verificador de Cotas SSA/UPE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet" />
+  <style>
+    /* ============================================================
+       VARIÁVEIS E RESET
+    ============================================================ */
+    :root {
+      --upe-navy:   #0a1628;
+      --upe-blue:   #1b3a6b;
+      --upe-sky:    #2563eb;
+      --upe-accent: #f59e0b;
+      --upe-green:  #10b981;
+      --upe-red:    #ef4444;
+      --upe-gray:   #94a3b8;
+      --upe-light:  #f1f5f9;
+      --upe-white:  #ffffff;
+
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 22px;
+      --shadow:    0 4px 24px rgba(10,22,40,.18);
+      --shadow-lg: 0 12px 48px rgba(10,22,40,.28);
+
+      --step-total: 5; /* usado no JS, não no CSS */
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Sora', sans-serif;
+      background: var(--upe-navy);
+      color: var(--upe-white);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ============================================================
+       BACKGROUND DECORATIVO
+    ============================================================ */
+    .bg-blobs {
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      overflow: hidden;
+    }
+    .bg-blobs::before {
+      content: '';
+      position: absolute; top: -20%; left: -10%;
+      width: 70vw; height: 70vw;
+      background: radial-gradient(circle, rgba(37,99,235,.18) 0%, transparent 70%);
+      animation: blobFloat 14s ease-in-out infinite alternate;
+    }
+    .bg-blobs::after {
+      content: '';
+      position: absolute; bottom: -20%; right: -10%;
+      width: 60vw; height: 60vw;
+      background: radial-gradient(circle, rgba(245,158,11,.10) 0%, transparent 70%);
+      animation: blobFloat 18s ease-in-out infinite alternate-reverse;
+    }
+    @keyframes blobFloat { from { transform: translate(0,0) scale(1); } to { transform: translate(4%,6%) scale(1.08); } }
+
+    /* ============================================================
+       LAYOUT WRAPPER
+    ============================================================ */
+    .wrapper {
+      position: relative; z-index: 1;
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 4rem;
+    }
+
+    /* ============================================================
+       HEADER
+    ============================================================ */
+    header {
+      text-align: center;
+      padding: 3.5rem 0 2.5rem;
+      animation: fadeDown .7s ease both;
+    }
+    .header-badge {
+      display: inline-flex; align-items: center; gap: .5rem;
+      background: rgba(37,99,235,.18);
+      border: 1px solid rgba(37,99,235,.4);
+      border-radius: 50px;
+      padding: .35rem 1rem;
+      font-size: .75rem; font-weight: 600; letter-spacing: .08em;
+      color: #93c5fd;
+      text-transform: uppercase;
+      margin-bottom: 1.4rem;
+    }
+    .header-badge span { color: var(--upe-accent); }
+    header h1 {
+      font-family: 'DM Serif Display', serif;
+      font-size: clamp(2rem, 5vw, 3rem);
+      line-height: 1.15;
+      margin-bottom: .8rem;
+    }
+    header h1 em { font-style: italic; color: var(--upe-accent); }
+    header p {
+      color: var(--upe-gray);
+      font-size: .95rem;
+      max-width: 480px;
+      margin: 0 auto;
+      line-height: 1.7;
+    }
+
+    /* ============================================================
+       INFO BOX (cotas explicadas)
+    ============================================================ */
+    .info-box {
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem 1.75rem;
+      margin-bottom: 2rem;
+      animation: fadeUp .7s .15s ease both;
+    }
+    .info-box h2 {
+      font-size: 1rem; font-weight: 700;
+      color: var(--upe-accent);
+      margin-bottom: 1rem;
+      display: flex; align-items: center; gap: .5rem;
+    }
+    .cotas-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: .75rem;
+    }
+    .cota-card {
+      background: rgba(255,255,255,.05);
+      border-radius: var(--radius-md);
+      padding: .9rem 1rem;
+      border-left: 3px solid var(--upe-sky);
+      transition: background .2s;
+    }
+    .cota-card:hover { background: rgba(255,255,255,.09); }
+    .cota-card .tag {
+      font-size: .7rem; font-weight: 700; letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--upe-accent);
+      margin-bottom: .35rem;
+    }
+    .cota-card p { font-size: .82rem; color: #cbd5e1; line-height: 1.5; }
+
+    /* toggle */
+    .info-toggle {
+      background: none; border: none; cursor: pointer;
+      color: #93c5fd; font-size: .82rem; font-family: 'Sora', sans-serif;
+      display: flex; align-items: center; gap: .4rem;
+      margin-bottom: 1rem;
+      text-decoration: underline;
+      padding: 0;
+    }
+    .info-content { display: none; }
+    .info-content.open { display: block; }
+
+    /* ============================================================
+       PROGRESS BAR
+    ============================================================ */
+    .progress-wrap {
+      margin-bottom: 2rem;
+      animation: fadeUp .7s .25s ease both;
+    }
+    .progress-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: .6rem;
+    }
+    .progress-label { font-size: .78rem; color: var(--upe-gray); font-weight: 500; }
+    .progress-counter { font-size: .78rem; font-weight: 700; color: var(--upe-accent); }
+    .progress-bar-track {
+      height: 6px; background: rgba(255,255,255,.1);
+      border-radius: 50px; overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--upe-sky), var(--upe-accent));
+      border-radius: 50px;
+      transition: width .5s cubic-bezier(.4,0,.2,1);
+      width: 0%;
+    }
+
+    /* ============================================================
+       CARD (formulário)
+    ============================================================ */
+    .card {
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: var(--radius-lg);
+      padding: 2rem 2rem 1.75rem;
+      box-shadow: var(--shadow);
+      animation: fadeUp .7s .3s ease both;
+    }
+
+    /* ============================================================
+       STEPS
+    ============================================================ */
+    .step { display: none; }
+    .step.active {
+      display: block;
+      animation: stepIn .4s ease both;
+    }
+    @keyframes stepIn {
+      from { opacity: 0; transform: translateX(24px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    .step-number {
+      font-size: .72rem; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--upe-sky);
+      margin-bottom: .6rem;
+    }
+    .step h3 {
+      font-size: 1.2rem; font-weight: 700; line-height: 1.4;
+      margin-bottom: .5rem;
+    }
+    .step .hint {
+      font-size: .82rem; color: var(--upe-gray);
+      margin-bottom: 1.5rem; line-height: 1.6;
+    }
+    .step .hint strong { color: #fde68a; }
+
+    /* ============================================================
+       OPÇÕES
+    ============================================================ */
+    .options { display: flex; flex-direction: column; gap: .75rem; }
+
+    .option-btn {
+      display: flex; align-items: center; gap: .9rem;
+      background: rgba(255,255,255,.04);
+      border: 1.5px solid rgba(255,255,255,.12);
+      border-radius: var(--radius-md);
+      padding: .95rem 1.1rem;
+      cursor: pointer;
+      text-align: left;
+      font-family: 'Sora', sans-serif;
+      font-size: .9rem; font-weight: 500;
+      color: #e2e8f0;
+      transition: background .18s, border-color .18s, transform .12s;
+      width: 100%;
+    }
+    .option-btn:hover {
+      background: rgba(37,99,235,.15);
+      border-color: var(--upe-sky);
+      transform: translateX(4px);
+    }
+    .option-btn.selected {
+      background: rgba(37,99,235,.22);
+      border-color: var(--upe-sky);
+      color: var(--upe-white);
+    }
+    .option-btn.selected .opt-icon { background: var(--upe-sky); color: #fff; }
+    .opt-icon {
+      width: 36px; height: 36px; flex-shrink: 0;
+      border-radius: 50%;
+      background: rgba(255,255,255,.08);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem;
+      transition: background .18s;
+    }
+    .opt-text { flex: 1; line-height: 1.4; }
+    .opt-sub { font-size: .75rem; color: var(--upe-gray); font-weight: 400; display: block; margin-top: .2rem; }
+
+    /* ============================================================
+       NAVIGATION BUTTONS
+    ============================================================ */
+    .nav-row {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 1.75rem; gap: 1rem;
+    }
+    .btn {
+      display: inline-flex; align-items: center; gap: .5rem;
+      border: none; border-radius: var(--radius-md);
+      font-family: 'Sora', sans-serif;
+      font-size: .88rem; font-weight: 600;
+      cursor: pointer; transition: all .18s;
+      padding: .75rem 1.5rem;
+    }
+    .btn-ghost {
+      background: rgba(255,255,255,.07);
+      border: 1px solid rgba(255,255,255,.12);
+      color: var(--upe-gray);
+    }
+    .btn-ghost:hover { background: rgba(255,255,255,.12); color: #fff; }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--upe-sky), #1d4ed8);
+      color: #fff;
+      box-shadow: 0 4px 16px rgba(37,99,235,.4);
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(37,99,235,.5); }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-primary:disabled {
+      opacity: .45; cursor: not-allowed; transform: none;
+      box-shadow: none;
+    }
+    .btn-danger {
+      background: rgba(239,68,68,.12);
+      border: 1px solid rgba(239,68,68,.3);
+      color: #fca5a5;
+    }
+    .btn-danger:hover { background: rgba(239,68,68,.22); }
+
+    /* ============================================================
+       RESULTADO
+    ============================================================ */
+    #result-section {
+      display: none;
+      animation: fadeUp .5s ease both;
+    }
+
+    .result-card {
+      border-radius: var(--radius-lg);
+      padding: 2rem;
+      margin-bottom: 1.5rem;
+      border: 1px solid;
+    }
+    .result-card.eligible {
+      background: rgba(16,185,129,.08);
+      border-color: rgba(16,185,129,.35);
+    }
+    .result-card.universal {
+      background: rgba(37,99,235,.08);
+      border-color: rgba(37,99,235,.35);
+    }
+    .result-card.ineligible {
+      background: rgba(239,68,68,.08);
+      border-color: rgba(239,68,68,.35);
+    }
+
+    .result-emoji { font-size: 3rem; margin-bottom: 1rem; display: block; }
+    .result-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.7rem; margin-bottom: .5rem;
+    }
+    .result-card.eligible .result-title { color: var(--upe-green); }
+    .result-card.universal .result-title { color: #93c5fd; }
+    .result-card.ineligible .result-title { color: #fca5a5; }
+
+    .result-summary { font-size: .9rem; color: #cbd5e1; line-height: 1.7; margin-bottom: 1.25rem; }
+
+    /* categorias elegíveis */
+    .categories-title {
+      font-size: .75rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .08em; color: var(--upe-accent);
+      margin-bottom: .75rem;
+    }
+    .categories-list { display: flex; flex-wrap: wrap; gap: .6rem; }
+    .cat-pill {
+      display: flex; align-items: center; gap: .5rem;
+      background: rgba(255,255,255,.07);
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 50px;
+      padding: .45rem .95rem;
+      font-size: .82rem; font-weight: 600;
+    }
+    .cat-pill .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+    /* critérios */
+    .criteria-section { margin-top: 1.5rem; }
+    .criteria-section h4 {
+      font-size: .78rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .08em; color: var(--upe-gray); margin-bottom: .75rem;
+    }
+    .criteria-list { list-style: none; display: flex; flex-direction: column; gap: .5rem; }
+    .criteria-list li {
+      display: flex; align-items: flex-start; gap: .6rem;
+      font-size: .84rem; color: #cbd5e1; line-height: 1.5;
+    }
+    .criteria-list li .ci { font-size: .85rem; flex-shrink: 0; margin-top: .05rem; }
+    .ci.ok { color: var(--upe-green); }
+    .ci.no { color: var(--upe-red); }
+
+    /* disclaimer */
+    .disclaimer {
+      background: rgba(245,158,11,.08);
+      border: 1px solid rgba(245,158,11,.25);
+      border-radius: var(--radius-md);
+      padding: 1rem 1.25rem;
+      font-size: .82rem; color: #fde68a;
+      line-height: 1.6;
+    }
+    .disclaimer strong { font-weight: 700; }
+
+    /* ============================================================
+       FOOTER
+    ============================================================ */
+    footer {
+      text-align: center;
+      padding: 2rem 0 1rem;
+      font-size: .78rem;
+      color: rgba(148,163,184,.5);
+    }
+    footer a { color: rgba(147,197,253,.6); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    /* ============================================================
+       ANIMAÇÕES
+    ============================================================ */
+    @keyframes fadeDown {
+      from { opacity: 0; transform: translateY(-20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ============================================================
+       RESPONSIVIDADE
+    ============================================================ */
+    @media (max-width: 520px) {
+      .card { padding: 1.5rem 1.25rem 1.25rem; }
+      .cotas-grid { grid-template-columns: 1fr; }
+      .nav-row { flex-direction: column; }
+      .btn { width: 100%; justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+<div class="bg-blobs" aria-hidden="true"></div>
+
+<div class="wrapper">
+
+  <!-- ===== HEADER ===== -->
+  <header>
+    <div class="header-badge">
+      <span>UPE</span> · Sistema Seriado de Avaliação
+    </div>
+    <h1>Você é <em>cotista</em><br>no SSA 2/2026?</h1>
+    <p>Responda às perguntas abaixo e descubra, de forma rápida e clara, se você se enquadra no Sistema de Ações Afirmativas da UPE — e em qual categoria (A1, A2, A3 ou A4).</p>
+  </header>
+
+  <!-- ===== EXPLICAÇÃO DAS COTAS ===== -->
+  <div class="info-box">
+    <h2>📋 Como funcionam as cotas na UPE?</h2>
+    <button class="info-toggle" id="toggleInfo" onclick="toggleInfo()">
+      ▼ Mostrar detalhes dos estratos
+    </button>
+    <div class="info-content" id="infoContent">
+      <p style="font-size:.82rem;color:#94a3b8;margin-bottom:.9rem;line-height:1.6;">
+        Conforme Resoluções CONSUN Nº 10/2004, 006/2007, 021/2021, 020/2023 e 006/2024, <strong style="color:#e2e8f0;">40% das vagas</strong> de cada curso são reservadas a estudantes de escola pública. Esse percentual é dividido em 4 estratos iguais de <strong style="color:#e2e8f0;">10%</strong> cada:
+      </p>
+      <div class="cotas-grid">
+        <div class="cota-card">
+          <div class="tag">A1 — 10% das vagas</div>
+          <p>Escola pública + renda familiar bruta <em>per capita</em> ≤ 1 salário mínimo.</p>
+        </div>
+        <div class="cota-card">
+          <div class="tag">A2 — 10% das vagas</div>
+          <p>Escola pública + <em>qualquer renda</em> (sem restrição de renda).</p>
+        </div>
+        <div class="cota-card">
+          <div class="tag">A3 — 10% das vagas</div>
+          <p>Escola pública + renda ≤ 1 SM + autodeclarado(a) preto(a), pardo(a), quilombola ou indígena.</p>
+        </div>
+        <div class="cota-card">
+          <div class="tag">A4 — 10% das vagas</div>
+          <p>Escola pública + <em>qualquer renda</em> + autodeclarado(a) preto(a), pardo(a), quilombola ou indígena.</p>
+        </div>
+      </div>
+      <p style="font-size:.78rem;color:#64748b;margin-top:.9rem;">
+        ⚠️ Você pode concorrer a <strong style="color:#fde68a;">apenas um</strong> dos estratos. Candidatos que cursaram mesmo que parcialmente o Ensino Médio em escola privada (inclusive como bolsistas) <strong style="color:#fca5a5;">não têm direito às cotas</strong>. Concluintes de nível superior também estão vedados.
+      </p>
+    </div>
+  </div>
+
+  <!-- ===== BARRA DE PROGRESSO ===== -->
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-header">
+      <span class="progress-label" id="progressLabel">Pergunta 1 de 5</span>
+      <span class="progress-counter" id="progressPct">0%</span>
+    </div>
+    <div class="progress-bar-track">
+      <div class="progress-bar-fill" id="progressBar"></div>
+    </div>
+  </div>
+
+  <!-- ===== FORMULÁRIO ===== -->
+  <div class="card" id="quizCard">
+
+    <!-- STEP 1: Escola pública? -->
+    <div class="step active" id="step1">
+      <div class="step-number">Pergunta 1 de 5</div>
+      <h3>Onde você cursou o Ensino Médio e os anos finais do Fundamental (6º ao 9º ano)?</h3>
+      <p class="hint">
+        Para ter direito às cotas, <strong>toda</strong> a escolaridade precisa ter sido em escola pública federal, estadual ou municipal. Mesmo um período parcial em escola privada (incluindo bolsistas) anula o direito.
+      </p>
+      <div class="options" id="opts1">
+        <button class="option-btn" data-val="publica_total" onclick="selectOption(1, this)">
+          <span class="opt-icon">🏫</span>
+          <span class="opt-text">Integralmente em escola pública (federal, estadual ou municipal) <span class="opt-sub">Nunca estudei em escola privada, nem como bolsista</span></span>
+        </button>
+        <button class="option-btn" data-val="publica_parcial" onclick="selectOption(1, this)">
+          <span class="opt-icon">⚠️</span>
+          <span class="opt-text">Parcialmente em escola pública e parcialmente em privada <span class="opt-sub">Incluindo quem foi bolsista em escola privada</span></span>
+        </button>
+        <button class="option-btn" data-val="privada" onclick="selectOption(1, this)">
+          <span class="opt-icon">🏢</span>
+          <span class="opt-text">Integralmente em escola privada <span class="opt-sub">Escola particular, colégio privado etc.</span></span>
+        </button>
+        <button class="option-btn" data-val="supletivo" onclick="selectOption(1, this)">
+          <span class="opt-icon">📄</span>
+          <span class="opt-text">Realizei Exame Supletivo / ENCCEJA ou similar <span class="opt-sub">Independentemente do tipo de escola</span></span>
+        </button>
+      </div>
+      <div class="nav-row">
+        <span></span>
+        <button class="btn btn-primary" id="next1" disabled onclick="nextStep(1)">Próxima →</button>
+      </div>
+    </div>
+
+    <!-- STEP 2: Nível superior? -->
+    <div class="step" id="step2">
+      <div class="step-number">Pergunta 2 de 5</div>
+      <h3>Você já concluiu algum curso de nível superior?</h3>
+      <p class="hint">
+        Candidatos que já concluíram um curso superior — mesmo que ainda pendente a colação de grau — <strong>não têm direito às cotas</strong>, conforme o edital.
+      </p>
+      <div class="options" id="opts2">
+        <button class="option-btn" data-val="nao" onclick="selectOption(2, this)">
+          <span class="opt-icon">👤</span>
+          <span class="opt-text">Não, nunca conclui um curso superior <span class="opt-sub">Estou no Ensino Médio</span></span>
+        </button>
+        <button class="option-btn" data-val="sim" onclick="selectOption(2, this)">
+          <span class="opt-icon">🎓</span>
+          <span class="opt-text">Sim, já conclui ou estou pendente de colação <span class="opt-sub">Graduação, mesmo que não tenha me formado ainda</span></span>
+        </button>
+      </div>
+      <div class="nav-row">
+        <button class="btn btn-ghost" onclick="prevStep(2)">← Voltar</button>
+        <button class="btn btn-primary" id="next2" disabled onclick="nextStep(2)">Próxima →</button>
+      </div>
+    </div>
+
+    <!-- STEP 3: Renda? -->
+    <div class="step" id="step3">
+      <div class="step-number">Pergunta 3 de 5</div>
+      <h3>Qual é a renda familiar bruta <em>per capita</em> da sua família?</h3>
+      <p class="hint">
+        Divida a renda bruta mensal total da família pelo número de pessoas que moram na mesma casa. Em 2025, o salário mínimo é <strong>R$ 1.518,00</strong>.
+      </p>
+      <div class="options" id="opts3">
+        <button class="option-btn" data-val="ate1sm" onclick="selectOption(3, this)">
+          <span class="opt-icon">💰</span>
+          <span class="opt-text">Até 1 salário mínimo per capita <span class="opt-sub">≤ R$ 1.518,00 por pessoa/mês</span></span>
+        </button>
+        <button class="option-btn" data-val="acima1sm" onclick="selectOption(3, this)">
+          <span class="opt-icon">💵</span>
+          <span class="opt-text">Acima de 1 salário mínimo per capita <span class="opt-sub">> R$ 1.518,00 por pessoa/mês</span></span>
+        </button>
+      </div>
+      <div class="nav-row">
+        <button class="btn btn-ghost" onclick="prevStep(3)">← Voltar</button>
+        <button class="btn btn-primary" id="next3" disabled onclick="nextStep(3)">Próxima →</button>
+      </div>
+    </div>
+
+    <!-- STEP 4: Cor/raça? -->
+    <div class="step" id="step4">
+      <div class="step-number">Pergunta 4 de 5</div>
+      <h3>Você se autodeclara preto(a), pardo(a), quilombola ou indígena?</h3>
+      <p class="hint">
+        As categorias A3 e A4 são destinadas a candidatos de escola pública que se autodeclaram dessas identidades. A declaração estará sujeita a análise por <strong>Comissão de Heteroidentificação</strong> no ato da matrícula.
+      </p>
+      <div class="options" id="opts4">
+        <button class="option-btn" data-val="sim" onclick="selectOption(4, this)">
+          <span class="opt-icon">✊</span>
+          <span class="opt-text">Sim, me autodeclaro preto(a), pardo(a), quilombola ou indígena <span class="opt-sub">Sujeito à validação pela Comissão de Heteroidentificação</span></span>
+        </button>
+        <button class="option-btn" data-val="nao" onclick="selectOption(4, this)">
+          <span class="opt-icon">👤</span>
+          <span class="opt-text">Não me enquadro nessas categorias</span>
+        </button>
+      </div>
+      <div class="nav-row">
+        <button class="btn btn-ghost" onclick="prevStep(4)">← Voltar</button>
+        <button class="btn btn-primary" id="next4" disabled onclick="nextStep(4)">Próxima →</button>
+      </div>
+    </div>
+
+    <!-- STEP 5: CEJA? -->
+    <div class="step" id="step5">
+      <div class="step-number">Pergunta 5 de 5</div>
+      <h3>Caso tenha estudado em escola pública: foi em regime regular ou por algum projeto de inclusão como CEJA?</h3>
+      <p class="hint">
+        O CEJA (Centro de Educação de Jovens e Adultos) é aceito para cotas, <strong>desde que seja em escola pública e em regime regular</strong>. Supletivo, ENCCEJA e similares <strong>não</strong> são aceitos.
+      </p>
+      <div class="options" id="opts5">
+        <button class="option-btn" data-val="regular" onclick="selectOption(5, this)">
+          <span class="opt-icon">📚</span>
+          <span class="opt-text">Regime escolar regular (escola pública normal) <span class="opt-sub">Ensino Médio regular em escola pública</span></span>
+        </button>
+        <button class="option-btn" data-val="ceja" onclick="selectOption(5, this)">
+          <span class="opt-icon">🏛️</span>
+          <span class="opt-text">CEJA (Centro Estadual de Educação de Jovens e Adultos) <span class="opt-sub">Projeto público de inclusão, em escola pública</span></span>
+        </button>
+      </div>
+      <div class="nav-row">
+        <button class="btn btn-ghost" onclick="prevStep(5)">← Voltar</button>
+        <button class="btn btn-primary" id="next5" disabled onclick="calcResult()">Ver resultado →</button>
+      </div>
+    </div>
+
+  </div><!-- /card -->
+
+  <!-- ===== RESULTADO ===== -->
+  <div id="result-section">
+
+    <div id="result-card-el" class="result-card">
+      <span class="result-emoji" id="result-emoji">🎉</span>
+      <div class="result-title" id="result-title">Calculando...</div>
+      <p class="result-summary" id="result-summary"></p>
+
+      <div id="categories-wrap" style="display:none;">
+        <div class="categories-title">Categorias em que você pode concorrer:</div>
+        <div class="categories-list" id="categories-list"></div>
+      </div>
+
+      <div class="criteria-section" id="criteria-section" style="display:none;">
+        <h4>Por que você se enquadra / não se enquadra:</h4>
+        <ul class="criteria-list" id="criteria-list"></ul>
+      </div>
+    </div>
+
+    <div class="disclaimer" id="disclaimer"></div>
+
+    <div class="nav-row" style="margin-top:1.5rem;">
+      <button class="btn btn-danger" onclick="resetQuiz()">🔄 Recomeçar</button>
+      <a href="http://processodeingresso.upe.pe.gov.br" target="_blank" rel="noopener" class="btn btn-primary">Acessar site oficial →</a>
+    </div>
+
+  </div><!-- /result-section -->
+
+  <footer>
+    Ferramenta informativa baseada no <strong>Edital SSA 2/2026 (Triênio 2023–2025)</strong> da UPE. Não substitui a leitura do edital oficial.<br>
+    <a href="http://processodeingresso.upe.pe.gov.br" target="_blank">processodeingresso.upe.pe.gov.br</a>
+  </footer>
+
+</div><!-- /wrapper -->
+
+<script>
+  /* ============================================================
+     ESTADO DO QUIZ
+  ============================================================ */
+  const answers = {}; // { 1: 'publica_total', 2: 'nao', ... }
+  let currentStep = 1;
+  const TOTAL_STEPS = 5;
+
+  /* ============================================================
+     TOGGLE INFO
+  ============================================================ */
+  function toggleInfo() {
+    const content = document.getElementById('infoContent');
+    const btn = document.getElementById('toggleInfo');
+    const open = content.classList.toggle('open');
+    btn.textContent = open ? '▲ Ocultar detalhes' : '▼ Mostrar detalhes dos estratos';
+  }
+
+  /* ============================================================
+     SELECIONAR OPÇÃO
+  ============================================================ */
+  function selectOption(step, el) {
+    // deselect all in this step
+    const opts = document.querySelectorAll(`#opts${step} .option-btn`);
+    opts.forEach(b => b.classList.remove('selected'));
+    el.classList.add('selected');
+    answers[step] = el.dataset.val;
+    document.getElementById(`next${step}`).disabled = false;
+
+    // auto-avanço com leve delay
+    setTimeout(() => {
+      if (step < TOTAL_STEPS) nextStep(step);
+      else if (step === TOTAL_STEPS) calcResult();
+    }, 350);
+  }
+
+  /* ============================================================
+     NAVEGAÇÃO
+  ============================================================ */
+  function nextStep(current) {
+    if (!answers[current]) return; // não avança sem resposta
+
+    // lógica de pulo:
+    // Se na step 1 a resposta não é escola pública total → pula para resultado direto
+    if (current === 1) {
+      const v = answers[1];
+      if (v === 'privada' || v === 'publica_parcial' || v === 'supletivo') {
+        // não precisa de mais perguntas
+        calcResult();
+        return;
+      }
+    }
+    // Se na step 2 já concluiu superior → resultado direto
+    if (current === 2 && answers[2] === 'sim') {
+      calcResult();
+      return;
+    }
+    // Step 5 só aparece se escola pública (já garantido pelo step 1)
+
+    showStep(current + 1);
+  }
+
+  function prevStep(current) {
+    showStep(current - 1);
+  }
+
+  function showStep(n) {
+    document.getElementById(`step${currentStep}`).classList.remove('active');
+    currentStep = n;
+    document.getElementById(`step${currentStep}`).classList.add('active');
+    updateProgress();
+    window.scrollTo({ top: document.querySelector('.progress-wrap').offsetTop - 20, behavior: 'smooth' });
+  }
+
+  /* ============================================================
+     PROGRESSO
+  ============================================================ */
+  function updateProgress() {
+    // conta quantas perguntas serão feitas no fluxo atual
+    const pct = Math.round(((currentStep - 1) / TOTAL_STEPS) * 100);
+    document.getElementById('progressBar').style.width = pct + '%';
+    document.getElementById('progressLabel').textContent = `Pergunta ${currentStep} de ${TOTAL_STEPS}`;
+    document.getElementById('progressPct').textContent = pct + '%';
+  }
+
+  /* ============================================================
+     CALCULAR RESULTADO
+  ============================================================ */
+  function calcResult() {
+    const a1 = answers[1]; // escola
+    const a2 = answers[2]; // superior
+    const a3 = answers[3]; // renda
+    const a4 = answers[4]; // raça
+    // a5 = regime (regular / ceja)
+
+    const criteria = [];
+    let eligible = false;
+    let categories = [];
+
+    // ---- Verificar bloqueios absolutos ----
+    const escolaPrivadaOuParcial = (a1 === 'privada' || a1 === 'publica_parcial');
+    const escolaSupletivo = (a1 === 'supletivo');
+    const conclSuperior = (a2 === 'sim');
+    const escolaPublicaTotal = (a1 === 'publica_total');
+    const rendaBaixa = (a3 === 'ate1sm');
+    const racaAfirmativa = (a4 === 'sim');
+
+    // Critério: escola pública integral
+    if (escolaPublicaTotal) {
+      criteria.push({ ok: true,  text: 'Cursou o Ensino Médio e anos finais do Fundamental integralmente em escola pública.' });
+    } else if (escolaSupletivo) {
+      criteria.push({ ok: false, text: 'Realizou Exame Supletivo / ENCCEJA — não elegível para cotas (vedado pelo edital).' });
+    } else {
+      criteria.push({ ok: false, text: 'Cursou parcial ou integralmente em escola privada (inclusive bolsista) — sem direito às cotas.' });
+    }
+
+    // Critério: nível superior
+    if (conclSuperior) {
+      criteria.push({ ok: false, text: 'Já concluiu curso de nível superior — vedado pelo edital.' });
+    } else if (a2) {
+      criteria.push({ ok: true, text: 'Não concluiu curso de nível superior.' });
+    }
+
+    // ---- Se bloqueado ----
+    if (escolaPrivadaOuParcial || escolaSupletivo || conclSuperior) {
+      showResult({
+        type: 'ineligible',
+        emoji: '❌',
+        title: 'Ampla Concorrência',
+        summary: 'Com base nas suas respostas, você <strong>não se enquadra</strong> no Sistema de Ações Afirmativas da UPE e deve concorrer pelo sistema de <strong>Ampla Concorrência</strong> (60% das vagas).',
+        categories: [],
+        criteria,
+        disclaimer: `<strong>⚠️ Atenção:</strong> Esta ferramenta é informativa. Leia o edital completo em <strong>processodeingresso.upe.pe.gov.br</strong> para garantir que você interprete corretamente os critérios antes de preencher sua inscrição.`
+      });
+      return;
+    }
+
+    // ---- Se chegou aqui: escola pública + sem superior ----
+    eligible = true;
+
+    // Renda
+    if (rendaBaixa) {
+      criteria.push({ ok: true, text: 'Renda familiar bruta per capita ≤ 1 salário mínimo — elegível para estratos de baixa renda (A1 e A3).' });
+    } else if (a3 === 'acima1sm') {
+      criteria.push({ ok: true, text: 'Renda familiar bruta per capita acima de 1 SM — elegível apenas para estratos sem restrição de renda (A2 e A4).' });
+    }
+
+    // Raça
+    if (racaAfirmativa) {
+      criteria.push({ ok: true, text: 'Autodeclarado(a) preto(a), pardo(a), quilombola ou indígena — elegível para estratos raciais (A3 e A4). Sujeito à Comissão de Heteroidentificação.' });
+    } else if (a4 === 'nao') {
+      criteria.push({ ok: true, text: 'Não se autodeclara preto(a), pardo(a), quilombola ou indígena — pode concorrer somente em A1 ou A2.' });
+    }
+
+    // ---- Calcular categorias ----
+    // A1: escola pública + renda ≤ 1 SM
+    if (rendaBaixa) categories.push('A1');
+    // A2: escola pública + qualquer renda
+    categories.push('A2');
+    // A3: escola pública + renda ≤ 1 SM + raça
+    if (rendaBaixa && racaAfirmativa) categories.push('A3');
+    // A4: escola pública + qualquer renda + raça
+    if (racaAfirmativa) categories.push('A4');
+
+    // Aviso: só pode escolher UM estrato
+    criteria.push({ ok: true, text: 'Você só pode se inscrever em UMA das categorias acima. Escolha aquela que mais beneficia seu perfil.' });
+
+    showResult({
+      type: 'eligible',
+      emoji: '🎉',
+      title: 'Você é elegível às cotas!',
+      summary: `Parabéns! Com base nas suas respostas, você <strong>se enquadra no Sistema de Ações Afirmativas</strong> da UPE. Você pode concorrer às categorias listadas abaixo. Lembre-se: a comprovação dos critérios ocorre no ato da matrícula.`,
+      categories,
+      criteria,
+      disclaimer: `<strong>⚠️ Atenção:</strong> Esta ferramenta é informativa e não substitui a leitura do edital. Você pode concorrer em <strong>apenas um estrato</strong>. Toda documentação comprobatória deve ser apresentada na matrícula. Acesse <strong>processodeingresso.upe.pe.gov.br</strong> para informações oficiais.`
+    });
+  }
+
+  /* ============================================================
+     EXIBIR RESULTADO
+  ============================================================ */
+  function showResult({ type, emoji, title, summary, categories, criteria, disclaimer }) {
+    // esconde quiz
+    document.getElementById('quizCard').style.display = 'none';
+    document.getElementById('progressWrap').style.display = 'none';
+
+    const section = document.getElementById('result-section');
+    section.style.display = 'block';
+
+    // card
+    const card = document.getElementById('result-card-el');
+    card.className = `result-card ${type}`;
+    document.getElementById('result-emoji').textContent = emoji;
+    document.getElementById('result-title').textContent = title;
+    document.getElementById('result-summary').innerHTML = summary;
+
+    // categorias
+    const catWrap = document.getElementById('categories-wrap');
+    const catList = document.getElementById('categories-list');
+    catList.innerHTML = '';
+    if (categories.length > 0) {
+      catWrap.style.display = 'block';
+      const colors = { A1: '#10b981', A2: '#2563eb', A3: '#f59e0b', A4: '#a855f7' };
+      const descs  = {
+        A1: 'Escola pública · Renda ≤ 1 SM',
+        A2: 'Escola pública · Qualquer renda',
+        A3: 'Escola pública · Renda ≤ 1 SM · PPI',
+        A4: 'Escola pública · Qualquer renda · PPI'
+      };
+      categories.forEach(cat => {
+        const pill = document.createElement('div');
+        pill.className = 'cat-pill';
+        pill.innerHTML = `<span class="dot" style="background:${colors[cat]}"></span><strong>${cat}</strong> — ${descs[cat]}`;
+        catList.appendChild(pill);
+      });
+    } else {
+      catWrap.style.display = 'none';
+    }
+
+    // critérios
+    const critSec = document.getElementById('criteria-section');
+    const critList = document.getElementById('criteria-list');
+    critList.innerHTML = '';
+    if (criteria.length > 0) {
+      critSec.style.display = 'block';
+      criteria.forEach(c => {
+        const li = document.createElement('li');
+        li.innerHTML = `<span class="ci ${c.ok ? 'ok' : 'no'}">${c.ok ? '✔' : '✘'}</span>${c.text}`;
+        critList.appendChild(li);
+      });
+    }
+
+    // disclaimer
+    document.getElementById('disclaimer').innerHTML = disclaimer;
+
+    // scroll
+    window.scrollTo({ top: section.offsetTop - 30, behavior: 'smooth' });
+  }
+
+  /* ============================================================
+     REINICIAR
+  ============================================================ */
+  function resetQuiz() {
+    // limpa respostas
+    for (let k in answers) delete answers[k];
+    currentStep = 1;
+
+    // re-exibe quiz
+    document.getElementById('quizCard').style.display = 'block';
+    document.getElementById('progressWrap').style.display = 'block';
+    document.getElementById('result-section').style.display = 'none';
+
+    // desativa todos os next buttons e deseleciona opções
+    for (let s = 1; s <= TOTAL_STEPS; s++) {
+      const nextBtn = document.getElementById(`next${s}`);
+      if (nextBtn) nextBtn.disabled = true;
+      const opts = document.querySelectorAll(`#opts${s} .option-btn`);
+      opts.forEach(b => b.classList.remove('selected'));
+      const step = document.getElementById(`step${s}`);
+      step.classList.remove('active');
+    }
+
+    // mostra step 1
+    document.getElementById('step1').classList.add('active');
+    updateProgress();
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  /* ============================================================
+     INIT
+  ============================================================ */
+  updateProgress();
+</script>
+</body>
+</html>
